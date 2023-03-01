@@ -1,0 +1,312 @@
+---
+title: "Exact Cluster"
+author: "Santosh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+library(stats)
+library(NbClust)
+library(cluster)
+library(mclust)
+library(amap)
+library(factoextra)
+library(purrr)
+#library(stylo)
+library(philentropy)
+library(SnowballC)
+library(caTools)
+library(dplyr)
+library(textstem)
+library(stringr)
+library(wordcloud)
+library(tm)
+```
+
+```{r}
+Dataset <- read.csv("clustering_df.csv")
+Dataset
+```
+
+```{r}
+#made a copy
+Dataset_1 <- Dataset
+```
+
+```{r}
+head(Dataset_1)
+```
+
+```{r}
+str(Dataset)
+```
+
+```{r}
+#save the label
+LabelData <- Dataset$Label
+LabelData
+```
+
+```{r}
+#removing the labelled data from Dataset
+Dataset <- Dataset[, -c(1)]
+Dataset
+```
+
+```{r}
+#pairwise distance between the vectors
+Dist4 <- dist(Dataset, method = "minkowski", p=1) #Manhattan
+Dist5<- dist(Dataset, method = "minkowski", p=2) #Euclidean
+
+```
+
+```{r}
+Dataset_scale <- scale(Dataset)
+Dataset_scale
+```
+
+```{r}
+Dataset_norm <- as.data.frame(apply(Dataset[,1:3], 2,
+                                    function(x) (x - min(x))/ (max(x) - min(x))))
+Dataset_normF
+```
+
+```{r}
+#Now cluster We can also use Silhouette?
+kmeans_dataset <- NbClust(Dataset_norm, min.nc = 2, max.nc = 4, method = "kmeans")
+kmeans_dataset
+```
+
+```{r}
+#how many clusters is best
+table(kmeans_dataset$Best.n[1,])
+```
+
+```{r}
+barplot(kmeans_dataset$Best.n[1,],
+        xlab="Numer of Clusters", ylab="",
+        main="Number of Clusters")
+```
+
+```{r}
+#Silhoutte
+fviz_nbclust(Dataset_norm, method = "silhouette",
+             FUN = hcut, k.max = 5)
+```
+
+```{r}
+#Elbow Method
+fviz_nbclust(as.matrix(Dataset_norm), kmeans,
+             k.max = 5,
+             method = "wss",
+             diss = get_dist(as.matrix(Dataset_norm), method = "manhattan"))
+```
+
+```{r}
+kmeans_result <- kmeans(Dataset, 2, nstart = 25)
+kmeans_result
+```
+
+```{r}
+kmeans_result$centers
+```
+
+```{r}
+#aggregate
+aggregate(Dataset, 
+          by = list(cluster = kmeans_result$cluster), mean)
+```
+
+```{r}
+summary(kmeans_result)
+```
+
+```{r}
+cbind(Dataset, cluster = kmeans_result$cluster)
+```
+
+```{r}
+#size
+kmeans_result$size
+```
+
+```{r}
+fviz_cluster(kmeans_result,Dataset, main = "Euclidean")
+```
+
+```{r}
+My_Kmeans_3D_4<-Kmeans(Dataset_norm, centers=2 ,method = "spearman")
+fviz_cluster(My_Kmeans_3D_4, Dataset, main="Spearman")
+## k= 3
+My_Kmeans_3D_5<-Kmeans(Dataset_norm, centers=3 ,method = "spearman")
+fviz_cluster(My_Kmeans_3D_5, Dataset, main="Spearman")
+## k = 2 with Euclidean
+My_Kmeans_3D_Euc<-Kmeans(Dataset_norm, centers=2 ,method = "euclidean")
+fviz_cluster(My_Kmeans_3D_Euc, Dataset, main="Euclidean")
+## k = 3 with Euclidean
+My_Kmeans_3D_E6<-Kmeans(Dataset_norm, centers=3 ,method = "euclidean")
+fviz_cluster(My_Kmeans_3D_E6, Dataset, main="Euclidean")
+```
+
+```{r}
+#Hierarchical CLustering
+Dist_norm_M2<- dist(Dataset_norm, method = "minkowski", p=2)
+(HClust_Ward_Euc_N_3D <- hclust(Dist_norm_M2, method = "average" ))
+plot(HClust_Ward_Euc_N_3D, cex=0.9, hang=-1, main = "Minkowski p=2 (Euclidean)")
+rect.hclust(HClust_Ward_Euc_N_3D, k=4)
+```
+
+```{r}
+#Using Manhattan with ward.D2
+dist_C <- stats::dist(Dataset_norm, method="manhattan")
+HClust_Ward_CosSim_N_3D <- hclust(dist_C, method="ward.D2")
+plot(HClust_Ward_CosSim_N_3D, cex=.7, hang=-30,main = "Manhattan")
+rect.hclust(HClust_Ward_CosSim_N_3D, k=2)
+```
+
+```{r}
+methods <- c( "average", "single", "complete", "ward")
+names(methods) <- c( "average", "single", "complete", "ward")
+```
+
+```{r}
+MethodMeasures <- function(x) {
+  cluster::agnes(Dataset_norm, method = x)$ac
+}
+(purrr::map_dbl(methods, MethodMeasures))
+```
+
+```{r eval= False}
+(fviz_cluster(My_Kmeans_3D_E6, data = Dataset,
+             ellipse.type = "convex",
+             #ellipse.type = "concave",
+             palette = "jco",
+             axes = c(1, 4), # num axes = num docs (num rows)
+             ggtheme = theme_minimal()))
+```
+
+```{r}
+library(arules)
+library(arulesViz)
+transactions <- read.transactions("clustering_df.csv", format = "basket", rm.duplicates = FALSE, cols = NULL, sep = ",")
+```
+
+```{r}
+km <- kmeans(Dataset_scale, centers = 3, nstart = 25)
+```
+
+## Visulizing k-means
+```{r}
+library(factoextra)
+library(ggplot2)
+library(proxy)
+factoextra::fviz_cluster(km, data =Dataset_scale, geom = "point", ellipse.type = "convex")
+```
+
+
+```{r}
+## Calculating distance matrices based on Euclidean and Manhattan methods
+distMatrix_E <- dist(Dataset_scale, method="euclidean")
+distMatrix_Mi <- dist(Dataset_scale, method="minkowski", p =3)
+distMatrix_M <- dist(Dataset_scale, method="manhattan")
+distMatrix_c <- dist(Dataset_scale, method = "cosine")
+```
+
+## Hierarchical clustering based on Euclidean distance
+```{r}
+## Euclidean
+groups_E <- hclust(distMatrix_E,method="ward.D")
+plot(groups_E, cex=0.9, hang=-1, main = "Euclidean")
+rect.hclust(groups_E, k=3)
+```
+## Hierarchical clustering based on Minkowski distance
+```{r}
+## Minkowski
+groups_Mi <- hclust(distMatrix_Mi,method="ward.D")
+plot(groups_Mi, cex=0.9, hang=-1, main = "Minkowski")
+rect.hclust(groups_E, k=3)
+```
+## Hierarchical clustering based on Manhattan distance
+```{r}
+## Manhattan
+groups_M <- hclust(distMatrix_M,method="ward.D")
+plot(groups_M, cex=0.9, hang=-1, main = "Manhattan")
+rect.hclust(groups_E, k=3)
+```
+
+```{r}
+groups_c <- hclust(as.dist(distMatrix_c),method="ward.D")
+plot(groups_c, cex=0.9, hang=-1, main = "Cosine")
+rect.hclust(groups_c, k=3)
+
+```
+#Association Rule Mining
+```{r}
+Netflix_data <- read.csv("netflix_data.csv")
+Netflix_data
+```
+```{r}
+rules <- arules::apriori(transactions, parameter = list(support = 0.045, confidence = 0.05, minlen = 2))
+inspect(rules)
+```
+
+```{r}
+## Rules based on Confidence
+SortRules_Conf <- sort(rules, by = 'confidence', decreasing = TRUE)
+inspect(SortRules_Conf[1:15])
+```
+## Rules based on Lift
+```{r}
+SortRules_Lift <- sort(rules, by = 'lift', decreasing = TRUE)
+inspect(SortRules_Lift[1:15])
+```
+## Rules based on Support
+```{r}
+SortRules_Sup <- sort(rules, by = 'support', decreasing = TRUE)
+inspect(SortRules_Sup[1:15])
+```
+
+```{r}
+library(arulesViz)
+plot(SortRules_Conf, method="graph", engine="interactive", limit = 15)
+```
+```{r}
+library(arulesViz)
+plot(SortRules_Conf, method="graph", engine="interactive", limit = 15)
+```
+
+```{r}
+library(arulesViz)
+plot(SortRules_Lift, method="graph", engine="interactive", limit = 15)
+```
+
+```{r}
+library(arulesViz)
+plot(SortRules_Sup, method="graph", engine="interactive", limit = 15)
+```
+
